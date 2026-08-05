@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "baochip,bao1x-dabao", "baochip,bao1x";
+	model = "Baochip-1x Dabao";
+
+	chosen {
+		bootargs = "console=hvc0 earlycon=sbi";
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <100000>;	/* 100 kHz; ptal `ticktimer` in the SBI layer */
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "riscv";
+			reg = <0>;
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr", "zifencei";
+			mmu-type = "riscv,sv32";
+			clock-frequency = <350000000>;
+
+			cpu0_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+			};
+		};
+	};
+
+	memory@61000000 {
+		device_type = "memory";
+		reg = <0x61000000 0x001fe000>;	/* top 8 KiB reserved for the M-mode trap stack */
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+	};
+};

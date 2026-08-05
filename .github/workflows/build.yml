@@ -1,0 +1,98 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  LLVM_VERSION: "22"
+  ZIG_VERSION: "0.16.0"
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  build:
+    # Pinned: ubuntu-latest moves between LTS images and takes the default
+    # clang and glibc with it. Bump deliberately, not on GitHub's schedule
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Ubuntu's archive has no LLVM 22, so this comes from LLVM's own apt repo
+      # and installs into /usr/lib/llvm-22/bin. The kernel's LLVM=1 calls clang,
+      # ld.lld and the llvm-* tools by plain name, hence the symlinks
+      - name: LLVM ${{ env.LLVM_VERSION }}
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh "$LLVM_VERSION"
+          for t in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy \
+                   llvm-objdump llvm-readelf llvm-strip; do
+            sudo ln -sf "/usr/lib/llvm-$LLVM_VERSION/bin/$t" "/usr/local/bin/$t"
+          done
+          clang --version | head -1
+
+      - name: dtc, cpio
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends device-tree-compiler cpio file
+
+      - name: Zig ${{ env.ZIG_VERSION }}
+        run: |
+          url=$(curl -sS https://ziglang.org/download/index.json \
+            | python3 -c 'import sys,json,os;print(json.load(sys.stdin)[os.environ["ZIG_VERSION"]]["x86_64-linux"]["tarball"])')
+          curl -sSL "$url" | tar -xJ
+          echo "$PWD/$(basename "${url%.tar.xz}")" >> "$GITHUB_PATH"
+
+      - name: Rust ${{ env.RUST_VERSION }}
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup target add riscv32imac-unknown-none-elf --toolchain "$RUST_VERSION"
+
+      - name: Check toolchain
+        run: |
+          zig version
+          ./setup.sh check
+
+      - name: Configure kernel
+        run: ./setup.sh
+
+      # Userspace first: both binaries are build products, and the initramfs
+      # holding them is compiled into the xipImage
+      - name: Build userspace
+        run: |
+          ./flash.sh busybox
+          ./flash.sh demo
+
+      - name: Build images
+        run: |
+          mkdir -p artifacts
+          VOL=artifacts ./flash.sh all
+
+      - name: Report sizes
+        run: |
+          echo "### Images" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for f in artifacts/*.uf2 bin/demo-rv32; do
+            printf '%-18s %9d bytes\n' "$(basename "$f")" "$(stat -c%s "$f")" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # The kernel slot runs to 0x603DA000; anything past that is silently not written by boot1
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import os
+          size = os.path.getsize("workspace/linux/arch/riscv/boot/xipImage")
+          room = 0x603DA000 - 0x600A0000
+          print(f"\nxipImage {size} bytes, {100*size/room:.0f}% of the writable kernel slot")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baochip-linux-images
+          if-no-files-found: error
+          path: |
+            artifacts/*.uf2
+            workspace/linux/arch/riscv/boot/xipImage
+            bin/demo-rv32

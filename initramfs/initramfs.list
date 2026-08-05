@@ -1,0 +1,37 @@
+# /dev/console MUST exist here or init runs blind and the kernel reports
+# "Attempted to kill init!"
+dir /bin 755 0 0
+file /bin/busybox ../../bin/busybox-rv32-min 755 0 0
+
+# A separate statically linked ELF, not a busybox applet -- see initramfs/demo.c
+# Costs ~37K of ramfs (which is RAM), so drop it if the budget gets tight
+file /bin/demo ../../bin/demo-rv32 755 0 0
+slink /bin/sh /bin/busybox 777 0 0
+
+# BusyBox dispatches on argv[0], and this build has FEATURE_SH_STANDALONE=n, so
+# ash cannot run applets internally -- it exec()s them like any other command
+# One symlink per applet is what makes `uname -a` work instead of "not found"
+# Only applets actually enabled in configs/busybox-min.config; a symlink to a
+# missing applet gets you "applet not found", which is a worse error than
+# "not found" because it looks like the binary is broken
+# (The alternative is rebuilding busybox with FEATURE_SH_STANDALONE=y, which
+# needs the three zig-linker workarounds in "Build recipe". Symlinks are free.)
+slink /bin/cat /bin/busybox 777 0 0
+slink /bin/echo /bin/busybox 777 0 0
+slink /bin/ls /bin/busybox 777 0 0
+slink /bin/pwd /bin/busybox 777 0 0
+slink /bin/sleep /bin/busybox 777 0 0
+slink /bin/uname /bin/busybox 777 0 0
+slink /bin/mount /bin/busybox 777 0 0
+slink /bin/free /bin/busybox 777 0 0
+slink /bin/ps /bin/busybox 777 0 0
+slink /bin/dmesg /bin/busybox 777 0 0
+slink /bin/setsid /bin/busybox 777 0 0
+slink /bin/cttyhack /bin/busybox 777 0 0
+
+file /init ../../initramfs/init 755 0 0
+dir /dev 755 0 0
+nod /dev/console 600 0 0 c 5 1
+nod /dev/null 666 0 0 c 1 3
+dir /proc 755 0 0
+dir /sys 755 0 0

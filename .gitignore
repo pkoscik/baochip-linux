@@ -1,0 +1,5 @@
+# Build products: bin/ comes from `./flash.sh busybox` and `./flash.sh demo`,
+# the dtb and the UF2 images are produced on demand
+/bin/
+/dts/*.dtb
+*.uf2

@@ -1,0 +1,8 @@
+[submodule "workspace/xous-core"]
+	path = workspace/xous-core
+	url = https://github.com/pkoscik/xous-core.git
+	branch = linux-mmode-stub
+[submodule "workspace/linux"]
+	path = workspace/linux
+	url = https://github.com/pkoscik/linux.git
+	branch = rv32-xip

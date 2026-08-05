@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+export PATH=/bin
+/bin/busybox mount -t devtmpfs dev /dev 2>/dev/null
+
+/bin/busybox mount -t proc proc /proc
+/bin/busybox mount -t sysfs sys /sys 2>/dev/null
+/bin/busybox echo ""
+/bin/busybox echo "=== Linux on Baochip-1x ==="
+/bin/busybox uname -a
+/bin/busybox free
+/bin/busybox echo "=========================="
+/bin/busybox echo "interactive shell. try:"
+/bin/busybox echo "  demo          static ELF: maps, mmap, fork, timing"
+/bin/busybox echo "  dmesg         boot log with timestamps"
+/bin/busybox echo "  uname -a      kernel version"
+/bin/busybox echo "  free          memory"
+/bin/busybox echo "  ps            processes"
+/bin/busybox echo "  ls /proc      kernel-exported process/sys info"
+
+# /dev/console cannot become a controlling tty, so a bare shell on it says
+# "can't access tty; job control turned off" and ^C/^Z die. setsid starts a
+# new session; cttyhack does TIOCSCTTY on the real console device.
+exec setsid cttyhack /bin/busybox sh || exec /bin/busybox sh
